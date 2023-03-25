@@ -1,2 +1,2 @@
 # Aictionary
-The world's first dictionary that is based on KI
+The world's first dictionary that is based on AI
