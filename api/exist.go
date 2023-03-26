@@ -25,8 +25,6 @@ func ExistHandler(w http.ResponseWriter, r *http.Request) {
 		"temperature": 0
 	}`)
 
-	fmt.Println(string(bytes.NewBuffer(jsonBody).Bytes()))
-
 	request, err := http.NewRequest(http.MethodPost, api, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		fmt.Fprintf(w, "TODO: Error json!")
