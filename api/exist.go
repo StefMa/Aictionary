@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 const api = "https://api.openai.com/v1/completions"
@@ -27,7 +29,7 @@ func ExistHandler(w http.ResponseWriter, r *http.Request) {
 
 	request, err := http.NewRequest(http.MethodPost, api, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		fmt.Fprintf(w, "TODO: Error json!")
+		writeErrorResponse(w, "Error while creating OpenAi Api request")
 		return
 	}
 
@@ -37,7 +39,8 @@ func ExistHandler(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	res, err := client.Do(request)
 	if err != nil {
-		fmt.Fprintf(w, "Error while doing OPENAPI request:\n %s", err)
+		errorMessage := fmt.Sprintf("Error while executing OpenAi Api request:\n %s", err)
+		writeErrorResponse(w, errorMessage)
 		return
 	}
 	defer res.Body.Close()
@@ -46,21 +49,63 @@ func ExistHandler(w http.ResponseWriter, r *http.Request) {
 		openApiErrorReponse := &OpenApiErrorResponse{}
 		err = json.NewDecoder(res.Body).Decode(openApiErrorReponse)
 		if err != nil {
-			fmt.Fprintf(w, "Can't decode OpenApiErrorResponse:\n %s", err)
+			errorMessage := fmt.Sprintf("Can't decode OpenApiErrorResponse:\n %s", err)
+			writeErrorResponse(w, errorMessage)
 			return
 		}
-		fmt.Fprintf(w, "Got OpenApi error. Message:\n %s", openApiErrorReponse.Error.Message)
+		fmt.Fprintf(w, "Got OpenAi Api error. Message:\n %s", openApiErrorReponse.Error.Message)
 		return
 	}
 
 	openApiReponse := &OpenApiResponse{}
 	err = json.NewDecoder(res.Body).Decode(openApiReponse)
 	if err != nil {
-		fmt.Fprintf(w, "Can't decode OpenApiResponse:\n %s", err)
+		errorMessage := fmt.Sprintf("Can't decode OpenApiResponse:\n %s", err)
+		writeErrorResponse(w, errorMessage)
 		return
 	}
-	promptAnswer := openApiReponse.Choices[0].Text
-	fmt.Fprintf(w, "Answer:\n %s", promptAnswer)
+	wordExist := false
+	if strings.Contains(openApiReponse.Choices[0].Text, "true") {
+		wordExist = true
+	}
+	response := Response{
+		Word:     word,
+		Language: lang,
+		Exist:    wordExist,
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		errorMessage := fmt.Sprintf("Can't encode Response:\n %s", err)
+		writeErrorResponse(w, errorMessage)
+		return
+	}
+	fmt.Fprintf(w, string(jsonResponse))
+}
+
+func writeErrorResponse(w io.Writer, errorMessage string) {
+	errorResponse := ErrorResponse{Message: errorMessage}
+	jsonResponse, err := json.Marshal(errorResponse)
+	if err != nil {
+		fmt.Fprintf(w, genericErrorResponse())
+	}
+	fmt.Fprintf(w, string(jsonResponse))
+}
+
+func genericErrorResponse() string {
+	jsonBody := []byte(`{
+		"message": "Uh no! Something went wrong. Please try again later",
+	}`)
+	return string(jsonBody)
+}
+
+type Response struct {
+	Word     string `json:"word"`
+	Language string `json:"lang"`
+	Exist    bool   `json:"exist"`
+}
+
+type ErrorResponse struct {
+	Message string `json:"message"`
 }
 
 type OpenApiResponse struct {
